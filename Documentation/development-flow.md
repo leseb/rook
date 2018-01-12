@@ -32,6 +32,14 @@ cd $GOPATH/src/github.com/rook
 git clone git@github.com:<user>/rook.git
 
 cd rook
+
+# Installs Go dependancies
+go get -u github.com/golang/dep/cmd/dep
+dep ensure
+
+# Builds the Rook operator
+cd cmd/rook
+go build
 ```
 
 ### Add Upstream Remote
