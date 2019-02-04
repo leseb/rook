@@ -23,6 +23,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	cephVolumeInventoryOutput = `[{"available": true, "rejected_reasons": [], "sys_api": {"scheduler_mode": "mq-deadline", "rotational": "0", "vendor": "", "human_readable_size": "1024.00 MB", "sectors": 0, "sas_device_handle": "", "partitions": {}, "rev": "", "sas_address": "", "locked": 0, "sectorsize": "512", "removable": "0", "path": "/dev/rbd0", "support_discard": "", "model": "", "ro": "0", "nr_requests": "256", "size": 1073741824.0}, "lvs": [], "path": "/dev/rbd0"}, {"available": true, "rejected_reasons": [], "sys_api": {"scheduler_mode": "deadline", "rotational": "1", "vendor": "ATA", "human_readable_size": "50.00 GB", "sectors": 0, "sas_device_handle": "", "partitions": {}, "rev": "2.5+", "sas_address": "", "locked": 0, "sectorsize": "512", "removable": "0", "path": "/dev/sda", "support_discard": "", "model": "QEMU HARDDISK", "ro": "0", "nr_requests": "128", "size": 53687091200.0}, "lvs": [], "path": "/dev/sda"}, {"available": false, "rejected_reasons": ["locked"], "sys_api": {"scheduler_mode": "deadline", "rotational": "1", "vendor": "ATA", "human_readable_size": "50.00 GB", "sectors": 0, "sas_device_handle": "", "partitions": {}, "rev": "2.5+", "sas_address": "", "locked": 1, "sectorsize": "512", "removable": "0", "path": "/dev/sdb", "support_discard": "", "model": "QEMU HARDDISK", "ro": "0", "nr_requests": "128", "size": 53687091200.0}, "lvs": [{"cluster_name": "ceph", "name": "data-lv1", "osd_id": "0", "cluster_fsid": "7e264fe8-902a-4cfb-ad76-8930806a2846", "type": "block", "block_uuid": "EEmPso-KKaa-9xHP-XQcJ-8Tna-d4nB-hxmHpC", "osd_fsid": "4a3e79bd-c168-4f4f-bf50-db11a49031d9"}, {"cluster_name": "ceph", "name": "data-lv2", "osd_id": "1", "cluster_fsid": "7e264fe8-902a-4cfb-ad76-8930806a2846", "type": "block", "block_uuid": "Yk7faD-OWxp-MxEm-4OeT-elsP-1yZ1-J2dCGK", "osd_fsid": "4020a077-80a8-413e-805d-4c6086caca8f"}], "path": "/dev/sdb"}, {"available": false, "rejected_reasons": ["locked"], "sys_api": {"scheduler_mode": "deadline", "rotational": "1", "vendor": "ATA", "human_readable_size": "50.00 GB", "sectors": 0, "sas_device_handle": "", "partitions": {"sdc1": {"start": "2048", "holders": [], "sectorsize": 512, "sectors": "52426752", "size": "25.00 GB"}, "sdc2": {"start": "52428800", "holders": ["dm-3"], "sectorsize": 512, "sectors": "52426752", "size": "25.00 GB"}}, "rev": "2.5+", "sas_address": "", "locked": 1, "sectorsize": "512", "removable": "0", "path": "/dev/sdc", "support_discard": "", "model": "QEMU HARDDISK", "ro": "0", "nr_requests": "128", "size": 53687091200.0}, "lvs": [{"cluster_name": "ceph", "name": "journal1", "osd_id": "1", "cluster_fsid": "7e264fe8-902a-4cfb-ad76-8930806a2846", "db_uuid": "kztB84-BE0F-zA0S-1Yp8-aRRy-8jVL-0qy2Kp", "type": "db", "osd_fsid": "4020a077-80a8-413e-805d-4c6086caca8f"}], "path": "/dev/sdc"}, {"available": false, "rejected_reasons": ["locked"], "sys_api": {"scheduler_mode": "mq-deadline", "rotational": "1", "vendor": "0x1af4", "human_readable_size": "11.00 GB", "sectors": 0, "sas_device_handle": "", "partitions": {"vda1": {"start": "2048", "holders": [], "sectorsize": 512, "sectors": "614400", "size": "300.00 MB"}, "vda2": {"start": "616448", "holders": ["dm-0"], "sectorsize": 512, "sectors": "20355072", "size": "9.71 GB"}}, "rev": "", "sas_address": "", "locked": 1, "sectorsize": "512", "removable": "0", "path": "/dev/vda", "support_discard": "", "model": "", "ro": "0", "nr_requests": "256", "size": 11811160064.0}, "lvs": [{"comment": "not used by ceph", "name": "root"}], "path": "/dev/vda"}]
+`
+)
+
 func TestAvailableDisks(t *testing.T) {
 
 	// no disks discovered for a node is an error
@@ -88,4 +93,18 @@ func TestIgnoreDevice(t *testing.T) {
 	for dev, expected := range cases {
 		assert.Equal(t, expected, ignoreDevice(dev), dev)
 	}
+}
+
+func TestGetAvailableDevicesCephVolume(t *testing.T) {
+	fakeExecutor := &exectest.MockExecutor{
+		MockExecuteCommandWithOutput: func(debug bool, actionName string, command string, arg ...string) (string, error) {
+			return cephVolumeInventoryOutput, nil
+		},
+	}
+
+	expectedAvailableDevices := []string{"/dev/rbd0", "/dev/sda"}
+
+	d, err := GetAvailableDevicesCephVolume(fakeExecutor)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedDevList, d)
 }

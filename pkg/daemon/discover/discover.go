@@ -30,16 +30,20 @@ import (
 	"github.com/rook/rook/pkg/operator/k8sutil"
 	"github.com/rook/rook/pkg/util/sys"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
-	logger          = capnslog.NewPackageLogger("github.com/rook/rook", "rook-discover")
-	AppName         = "rook-discover"
-	NodeAttr        = "rook.io/node"
+	logger = capnslog.NewPackageLogger("github.com/rook/rook", "rook-discover")
+	// AppName is the name of the app
+	AppName = "rook-discover"
+	// NodeAttr attribute name of the node
+	NodeAttr = "rook.io/node"
+	// LocalDiskCMData config map
 	LocalDiskCMData = "devices"
+	// LocalDiskCMName config map name
 	LocalDiskCMName = "local-device-%s"
 	nodeName        string
 	namespace       string
@@ -48,6 +52,7 @@ var (
 	cm              *v1.ConfigMap
 )
 
+// Run runs the discover process
 func Run(context *clusterd.Context, probeInterval time.Duration) error {
 	if context == nil {
 		return fmt.Errorf("nil context")
@@ -81,12 +86,12 @@ func updateDeviceCM(context *clusterd.Context) error {
 		logger.Infof("failed to probe devices: %v", err)
 		return err
 	}
-	deviceJson, err := json.Marshal(devices)
+	deviceJSON, err := json.Marshal(devices)
 	if err != nil {
 		logger.Infof("failed to marshal: %v", err)
 		return err
 	}
-	deviceStr := string(deviceJson)
+	deviceStr := string(deviceJSON)
 	if cm == nil {
 		cm, err = context.Clientset.CoreV1().ConfigMaps(namespace).Get(cmName, metav1.GetOptions{})
 	}

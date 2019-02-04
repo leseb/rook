@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package clusterd
 
 import (
@@ -30,6 +31,7 @@ var (
 	isRBD  = regexp.MustCompile("^rbd[0-9]+p?[0-9]{0,}$")
 )
 
+// GetAvailableDevices finds available devices
 func GetAvailableDevices(devices []*sys.LocalDisk) []string {
 
 	var available []string
@@ -44,7 +46,25 @@ func GetAvailableDevices(devices []*sys.LocalDisk) []string {
 	return available
 }
 
-// check whether a device is completely empty
+// GetAvailableDevicesCephVolume finds available devices
+func GetAvailableDevicesCephVolume(executor exec.Executor) ([]string, error) {
+
+	devices, err := sys.ListDevicesCephVolume(executor)
+	if err != nil {
+		return nil, err
+	}
+
+	var available []string
+	for _, d := range devices {
+		if d.Available && ignoreDevice(d.Path) {
+			available = append(available, d.Path)
+		}
+	}
+
+	return nil, available
+}
+
+// GetDeviceEmpty check whether a device is completely empty
 func GetDeviceEmpty(device *sys.LocalDisk) bool {
 	return device.Parent == "" && (device.Type == sys.DiskType || device.Type == sys.SSDType || device.Type == sys.CryptType || device.Type == sys.LVMType) && len(device.Partitions) == 0 && device.Filesystem == ""
 }
@@ -53,7 +73,7 @@ func ignoreDevice(d string) bool {
 	return isRBD.MatchString(d)
 }
 
-// Discover all the details of devices available on the local node
+// DiscoverDevices all the details of devices available on the local node
 func DiscoverDevices(executor exec.Executor) ([]*sys.LocalDisk, error) {
 
 	var disks []*sys.LocalDisk

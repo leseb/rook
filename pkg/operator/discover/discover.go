@@ -30,7 +30,7 @@ import (
 	discoverDaemon "github.com/rook/rook/pkg/daemon/discover"
 	"github.com/rook/rook/pkg/operator/k8sutil"
 	"github.com/rook/rook/pkg/util/sys"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	kserrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,6 +114,16 @@ func (d *Discover) createDiscoverDaemonSet(namespace, discoverImage, securityAcc
 									MountPath: "/run/udev",
 									ReadOnly:  true,
 								},
+								{
+									Name:      "lvm",
+									MountPath: "/run/lvm",
+									ReadOnly:  true,
+								},
+								{
+									Name:      "lvm-lock",
+									MountPath: "/run/lock/lvm",
+									ReadOnly:  true,
+								},
 							},
 							Env: []v1.EnvVar{
 								k8sutil.NamespaceEnvVar(),
@@ -143,6 +153,22 @@ func (d *Discover) createDiscoverDaemonSet(namespace, discoverImage, securityAcc
 							VolumeSource: v1.VolumeSource{
 								HostPath: &v1.HostPathVolumeSource{
 									Path: "/run/udev",
+								},
+							},
+						},
+						{
+							Name: "lvm",
+							VolumeSource: v1.VolumeSource{
+								HostPath: &v1.HostPathVolumeSource{
+									Path: "/run/lvm",
+								},
+							},
+						},
+						{
+							Name: "lvm-lock",
+							VolumeSource: v1.VolumeSource{
+								HostPath: &v1.HostPathVolumeSource{
+									Path: "/run/lock/lvm",
 								},
 							},
 						},
