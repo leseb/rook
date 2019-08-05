@@ -121,6 +121,8 @@ const (
                   readOnly: true
                 - name: ceph-csi-config
                   mountPath: /etc/ceph-csi-config/
+                - name: keys-tmp-dir
+                  mountPath: /tmp/csi/keys
           volumes:
             - name: host-dev
               hostPath:
@@ -144,6 +146,10 @@ const (
                 items:
                   - key: csi-cluster-config-json
                     path: config.json
+            - name: keys-tmp-dir
+              emptyDir: {
+                medium: "Memory"
+              }
 `
 	rbdPluginTemplate = `
     kind: DaemonSet
@@ -236,6 +242,8 @@ const (
                   readOnly: true
                 - name: ceph-csi-config
                   mountPath: /etc/ceph-csi-config/
+                - name: keys-tmp-dir
+                  mountPath: /tmp/csi/keys
           volumes:
             - name: plugin-dir
               hostPath:
@@ -271,6 +279,10 @@ const (
                 items:
                   - key: csi-cluster-config-json
                     path: config.json
+            - name: keys-tmp-dir
+              emptyDir: {
+                medium: "Memory"
+              }
     `
 	cephfsProvisionerTemplate = `
     kind: StatefulSet
@@ -355,7 +367,8 @@ const (
                   mountPath: /dev
                 - name: ceph-csi-config
                   mountPath: /etc/ceph-csi-config/
-
+                - name: keys-tmp-dir
+                  mountPath: /tmp/csi/keys
           volumes:
             - name: socket-dir
               hostPath:
@@ -376,6 +389,10 @@ const (
                 items:
                   - key: csi-cluster-config-json
                     path: config.json
+            - name: keys-tmp-dir
+              emptyDir: {
+                medium: "Memory"
+              }
 `
 	cephfsPluginTemplate = `
     kind: DaemonSet
@@ -465,7 +482,8 @@ const (
                   mountPath: /mount-cache-dir
                 - name: ceph-csi-config
                   mountPath: /etc/ceph-csi-config/
-
+                - name: keys-tmp-dir
+                  mountPath: /tmp/csi/keys
           volumes:
             - name: plugin-dir
               hostPath:
@@ -500,6 +518,10 @@ const (
                 items:
                   - key: csi-cluster-config-json
                     path: config.json
+            - name: keys-tmp-dir
+              emptyDir: {
+                medium: "Memory"
+              }
 
 `
 )
