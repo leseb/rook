@@ -1319,7 +1319,7 @@ spec:
   sessionAffinity: None
   type: NodePort
 `
-	_, err := k8sh.KubectlWithStdin(externalSvc, []string{"create", "-f", "-"}...)
+	_, err := k8sh.KubectlWithStdin(externalSvc, []string{"apply", "-f", "-"}...)
 	if err != nil && !errors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create external service. %+v", err)
 	}
