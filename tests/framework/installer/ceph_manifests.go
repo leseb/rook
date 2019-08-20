@@ -157,9 +157,7 @@ spec:
                             pattern: ^(true|false)$
                       useAllDevices: 
                         type: boolean
-                      deviceFilter:
-                        type: string
-                        nullable: true
+                      deviceFilter: {}
                       directories:
                         type: array
                         items:
@@ -172,35 +170,13 @@ spec:
                           properties:
                             name:
                               type: string
-                            config:
-                              nullable: true
-                              properties:
-                                metadataDevice:
-                                  type: string
-                                storeType:
-                                  type: string
-                                  pattern: ^(filestore|bluestore)$
-                                databaseSizeMB:
-                                  type: string
-                                walSizeMB:
-                                  type: string
-                                journalSizeMB:
-                                  type: string
-                                osdsPerDevice:
-                                  type: string
-                                encryptedDevice:
-                                  type: string
-                                  pattern: ^(true|false)$
-                      location: 
-                        type: string
-                        nullable: true
+                            config: {}
+                      location: {}
                       resources: {}
                   type: array
                 useAllDevices: 
                   type: boolean
-                deviceFilter:
-                  type: string
-                  nullable: true
+                deviceFilter: {}
                 location: {}
                 directories:
                   type: array
@@ -208,25 +184,7 @@ spec:
                     properties:
                       path:
                         type: string
-                config:
-                  nullable: true
-                  properties:
-                    metadataDevice:
-                      type: string
-                    storeType:
-                      type: string
-                      pattern: ^(filestore|bluestore)$
-                    databaseSizeMB:
-                      type: string
-                    walSizeMB:
-                      type: string
-                    journalSizeMB:
-                      type: string
-                    osdsPerDevice:
-                      type: string
-                    encryptedDevice:
-                      type: string
-                      pattern: ^(true|false)$
+                config: {}
                 topologyAware: 
                   type: boolean
             monitoring:
@@ -386,12 +344,10 @@ spec:
               properties:
                 type:
                   type: string
-                sslCertificateRef:
-                  type: string
+                sslCertificateRef: {}
                 port:
                   type: integer
-                securePort:
-                  type: integer
+                securePort: {}
                 instances:
                   type: integer
                 annotations: {}
