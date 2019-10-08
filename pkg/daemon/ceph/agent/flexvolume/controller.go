@@ -18,14 +18,15 @@ limitations under the License.
 package flexvolume
 
 import (
-	"fmt"
-	"github.com/rook/rook/pkg/util/display"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/rook/rook/pkg/util/display"
+
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 	rookalpha "github.com/rook/rook/pkg/apis/rook.io/v1alpha2"
 	"github.com/rook/rook/pkg/clusterd"
 	"github.com/rook/rook/pkg/daemon/ceph/agent/flexvolume/attachment"
@@ -34,7 +35,7 @@ import (
 	"github.com/rook/rook/pkg/operator/ceph/cluster/mon"
 	"github.com/rook/rook/pkg/operator/k8sutil"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -96,8 +97,8 @@ func (c *Controller) Attach(attachOpts AttachOptions, devicePath *string) error 
 	// Check if this volume has been attached
 	volumeattachObj, err := c.volumeAttachment.Get(namespace, crdName)
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get volume CRD %s. %+v", crdName, err)
+		if !kerrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to get volume CRD %s", crdName)
 		}
 		// No volumeattach CRD for this volume found. Create one
 		volumeattachObj = rookalpha.NewVolume(
@@ -113,11 +114,11 @@ func (c *Controller) Attach(attachOpts AttachOptions, devicePath *string) error 
 		logger.Infof("creating Volume attach Resource %s/%s: %+v", volumeattachObj.Namespace, volumeattachObj.Name, attachOpts)
 		err = c.volumeAttachment.Create(volumeattachObj)
 		if err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return fmt.Errorf("failed to create volume CRD %s. %+v", crdName, err)
+			if !kerrors.IsAlreadyExists(err) {
+				return errors.Wrapf(err, "failed to create volume CRD %s", crdName)
 			}
 			// Some other attacher beat us in this race. Kubernetes will retry again.
-			return fmt.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by a different pod",
+			return errors.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by a different pod",
 				crdName, attachOpts.PodNamespace, attachOpts.Pod)
 		}
 	} else {
@@ -144,8 +145,8 @@ func (c *Controller) Attach(attachOpts AttachOptions, devicePath *string) error 
 				// Note this could return the reference of the pod who is requesting the attach if this pod have the same name as the pod in the attachment record.
 				pod, err := c.context.Clientset.CoreV1().Pods(attachment.PodNamespace).Get(attachment.PodName, metav1.GetOptions{})
 				if err != nil || (attachment.PodNamespace == attachOpts.PodNamespace && attachment.PodName == attachOpts.Pod) {
-					if err != nil && !errors.IsNotFound(err) {
-						return fmt.Errorf("failed to get pod CRD %s/%s. %+v", attachment.PodNamespace, attachment.PodName, err)
+					if err != nil && !kerrors.IsNotFound(err) {
+						return errors.Wrapf(err, "failed to get pod CRD %s/%s", attachment.PodNamespace, attachment.PodName)
 					}
 
 					logger.Infof("volume attachment record %s/%s is orphaned. Updating record with new attachment information for pod %s/%s", volumeattachObj.Namespace, volumeattachObj.Name, attachOpts.PodNamespace, attachOpts.Pod)
@@ -159,18 +160,18 @@ func (c *Controller) Attach(attachOpts AttachOptions, devicePath *string) error 
 					attachment.ReadOnly = attachOpts.RW == ReadOnly
 					err = c.volumeAttachment.Update(volumeattachObj)
 					if err != nil {
-						return fmt.Errorf("failed to update volume CRD %s. %+v", crdName, err)
+						return errors.Wrapf(err, "failed to update volume CRD %s", crdName)
 					}
 				} else {
 					// Attachment is not orphaned. Original pod still exists. Dont attach.
-					return fmt.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by pod %s/%s. Status %+v",
+					return errors.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by pod %s/%s. Status %+v",
 						crdName, attachOpts.PodNamespace, attachOpts.Pod, attachment.PodNamespace, attachment.PodName, pod.Status.Phase)
 				}
 			} else {
 				// No RW attachment found. Check if this is a RW attachment request.
 				// We only support RW once attachment. No mixing either with RO
 				if attachOpts.RW == "rw" && len(volumeattachObj.Attachments) > 0 {
-					return fmt.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by one or more pods",
+					return errors.Errorf("failed to attach volume %s for pod %s/%s. Volume is already attached by one or more pods",
 						crdName, attachOpts.PodNamespace, attachOpts.Pod)
 				}
 
@@ -186,14 +187,14 @@ func (c *Controller) Attach(attachOpts AttachOptions, devicePath *string) error 
 				volumeattachObj.Attachments = append(volumeattachObj.Attachments, newAttach)
 				err = c.volumeAttachment.Update(volumeattachObj)
 				if err != nil {
-					return fmt.Errorf("failed to update volume CRD %s. %+v", crdName, err)
+					return errors.Wrapf(err, "failed to update volume CRD %s", crdName)
 				}
 			}
 		}
 	}
 	*devicePath, err = c.volumeManager.Attach(attachOpts.Image, attachOpts.BlockPool, attachOpts.MountUser, attachOpts.MountSecret, attachOpts.ClusterNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to attach volume %s/%s: %+v", attachOpts.BlockPool, attachOpts.Image, err)
+		return errors.Wrapf(err, "failed to attach volume %s/%s", attachOpts.BlockPool, attachOpts.Image)
 	}
 	return nil
 }
@@ -204,7 +205,7 @@ func (c *Controller) Expand(expandArgs ExpandArgs, _ *struct{}) error {
 	sizeInMb := display.BToMb(expandArgs.Size)
 	err := c.volumeManager.Expand(expandOpts.Image, expandOpts.Pool, expandOpts.ClusterNamespace, sizeInMb)
 	if err != nil {
-		return fmt.Errorf("failed to resize volume %s/%s: %+v", expandOpts.Pool, expandOpts.Image, err)
+		return errors.Wrapf(err, "failed to resize volume %s/%s", expandOpts.Pool, expandOpts.Image)
 	}
 	return nil
 }
@@ -228,14 +229,14 @@ func (c *Controller) doDetach(detachOpts AttachOptions, force bool) error {
 		detachOpts.ClusterNamespace,
 		force,
 	); err != nil {
-		return fmt.Errorf("failed to detach volume %s/%s: %+v", detachOpts.BlockPool, detachOpts.Image, err)
+		return errors.Wrapf(err, "failed to detach volume %s/%s", detachOpts.BlockPool, detachOpts.Image)
 	}
 
 	namespace := os.Getenv(k8sutil.PodNamespaceEnvVar)
 	crdName := detachOpts.VolumeName
 	volumeAttach, err := c.volumeAttachment.Get(namespace, crdName)
 	if err != nil {
-		return fmt.Errorf("failed to get VolumeAttachment for %s in namespace %s. %+v", crdName, namespace, err)
+		return errors.Wrapf(err, "failed to get VolumeAttachment for %s in namespace %s", crdName, namespace)
 	}
 	if len(volumeAttach.Attachments) == 0 {
 		logger.Infof("Deleting Volume CRD %s/%s", namespace, crdName)
@@ -251,7 +252,7 @@ func (c *Controller) RemoveAttachmentObject(detachOpts AttachOptions, safeToDeta
 	logger.Infof("deleting attachment for mountDir %s from Volume attach CRD %s/%s", detachOpts.MountDir, namespace, crdName)
 	volumeAttach, err := c.volumeAttachment.Get(namespace, crdName)
 	if err != nil {
-		return fmt.Errorf("failed to get Volume attach CRD %s/%s: %+v", namespace, crdName, err)
+		return errors.Wrapf(err, "failed to get Volume attach CRD %s/%s", namespace, crdName)
 	}
 	node := os.Getenv(k8sutil.NodeNameEnvVar)
 	nodeAttachmentCount := 0
@@ -274,7 +275,7 @@ func (c *Controller) RemoveAttachmentObject(detachOpts AttachOptions, safeToDeta
 		}
 		return c.volumeAttachment.Update(volumeAttach)
 	}
-	return fmt.Errorf("volume CRD %s found but attachment to the mountDir %s was not found", crdName, detachOpts.MountDir)
+	return errors.Errorf("volume CRD %s found but attachment to the mountDir %s was not found", crdName, detachOpts.MountDir)
 }
 
 // Log logs messages from the driver
@@ -322,7 +323,7 @@ func (c *Controller) GetAttachInfoFromMountDir(mountDir string, attachOptions *A
 
 	pv, err := c.context.Clientset.CoreV1().PersistentVolumes().Get(attachOptions.VolumeName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get persistent volume %s: %+v", attachOptions.VolumeName, err)
+		return errors.Wrapf(err, "failed to get persistent volume %s", attachOptions.VolumeName)
 	}
 
 	if attachOptions.PodNamespace == "" {
@@ -338,7 +339,7 @@ func (c *Controller) GetAttachInfoFromMountDir(mountDir string, attachOptions *A
 		}
 		pods, err := c.context.Clientset.CoreV1().Pods(attachOptions.PodNamespace).List(opts)
 		if err != nil {
-			return fmt.Errorf("failed to get pods in namespace %s: %+v", attachOptions.PodNamespace, err)
+			return errors.Wrapf(err, "failed to get pods in namespace %s", attachOptions.PodNamespace)
 		}
 
 		pod := findPodByID(pods, types.UID(attachOptions.PodID))
@@ -365,7 +366,7 @@ func (c *Controller) GetAttachInfoFromMountDir(mountDir string, attachOptions *A
 	}
 	attachOptions.ClusterNamespace, err = c.parseClusterNamespace(attachOptions.StorageClass)
 	if err != nil {
-		return fmt.Errorf("failed to parse clusterNamespace from storageClass %s: %+v", attachOptions.StorageClass, err)
+		return errors.Wrapf(err, "failed to parse clusterNamespace from storageClass %s", attachOptions.StorageClass)
 	}
 	return nil
 }
@@ -388,7 +389,7 @@ func (c *Controller) GetClientAccessInfo(args []string, clientAccessInfo *Client
 	clusterNamespace := args[0]
 	clusterInfo, _, _, err := mon.LoadClusterInfo(c.context, clusterNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to load cluster information from clusters namespace %s: %+v", clusterNamespace, err)
+		return errors.Wrapf(err, "failed to load cluster information from clusters namespace %s", clusterNamespace)
 	}
 
 	monEndpoints := make([]string, 0, len(clusterInfo.Monitors))
@@ -403,7 +404,7 @@ func (c *Controller) GetClientAccessInfo(args []string, clientAccessInfo *Client
 	clientAccessInfo.SecretKey = args[3]
 
 	if c.mountSecurityMode == agent.MountSecurityModeRestricted && (clientAccessInfo.UserName == "" || clientAccessInfo.SecretKey == "") {
-		return fmt.Errorf("no mount user and/or mount secret given")
+		return errors.New("no mount user and/or mount secret given")
 	}
 
 	if c.mountSecurityMode == agent.MountSecurityModeAny && clientAccessInfo.UserName == "" {
@@ -413,10 +414,10 @@ func (c *Controller) GetClientAccessInfo(args []string, clientAccessInfo *Client
 	if clientAccessInfo.SecretKey != "" {
 		secret, err := c.context.Clientset.CoreV1().Secrets(podNamespace).Get(clientAccessInfo.SecretKey, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("unable to get mount secret %s from pod namespace %s. %+v", clientAccessInfo.SecretKey, podNamespace, err)
+			return errors.Wrapf(err, "unable to get mount secret %s from pod namespace %s", clientAccessInfo.SecretKey, podNamespace)
 		}
 		if len(secret.Data) == 0 || len(secret.Data) > 1 {
-			return fmt.Errorf("no data or more than one data (length %d) in mount secret %s in namespace %s", len(secret.Data), clientAccessInfo.SecretKey, podNamespace)
+			return errors.Errorf("no data or more than one data (length %d) in mount secret %s in namespace %s", len(secret.Data), clientAccessInfo.SecretKey, podNamespace)
 		}
 		var secretValue string
 		for _, value := range secret.Data {
@@ -436,7 +437,7 @@ func (c *Controller) GetKernelVersion(_ *struct{} /* no inputs */, kernelVersion
 	nodeName := os.Getenv(k8sutil.NodeNameEnvVar)
 	node, err := c.context.Clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get kernel version from node information for node %s: %+v", nodeName, err)
+		return errors.Wrapf(err, "failed to get kernel version from node information for node %s", nodeName)
 	}
 	*kernelVersion = node.Status.NodeInfo.KernelVersion
 	return nil
@@ -457,7 +458,7 @@ func getPodAndPVNameFromMountDir(mountDir string) (string, string, error) {
 	// token length should at least size 5
 	length := len(token)
 	if length < 5 {
-		return "", "", fmt.Errorf("failed to parse mountDir %s for CRD name and podID", mountDir)
+		return "", "", errors.Errorf("failed to parse mountDir %s for CRD name and podID", mountDir)
 	}
 	return token[length-4], token[length-1], nil
 }

@@ -18,12 +18,12 @@ limitations under the License.
 package cluster
 
 import (
-	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rook/rook/pkg/operator/k8sutil/cmdreporter"
 
 	"github.com/google/go-cmp/cmp"
@@ -98,7 +98,7 @@ func (c *cluster) detectCephVersion(rookImage, cephImage string, timeout time.Du
 		[]string{"ceph"}, []string{"--version"},
 		rookImage, cephImage)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set up ceph version job. %+v", err)
+		return nil, errors.Wrapf(err, "failed to set up ceph version job")
 	}
 
 	job := versionReporter.Job()
@@ -109,17 +109,17 @@ func (c *cluster) detectCephVersion(rookImage, cephImage string, timeout time.Du
 
 	stdout, stderr, retcode, err := versionReporter.Run(timeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to complete ceph version job. %+v", err)
+		return nil, errors.Wrapf(err, "failed to complete ceph version job")
 	}
 	if retcode != 0 {
-		return nil, fmt.Errorf(`ceph version job returned failure with retcode %d.
+		return nil, errors.Errorf(`ceph version job returned failure with retcode %d.
   stdout: %s
   stderr: %s`, retcode, stdout, stderr)
 	}
 
 	version, err := cephver.ExtractCephVersion(stdout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract ceph version. %+v", err)
+		return nil, errors.Wrapf(err, "failed to extract ceph version")
 	}
 	logger.Infof("Detected ceph image version: %s", version)
 	return version, nil
@@ -129,13 +129,13 @@ func (c *cluster) validateCephVersion(version *cephver.CephVersion) error {
 	// The external has its own supported versions
 	if !c.Spec.External.Enable {
 		if !version.IsAtLeast(cephver.Minimum) {
-			return fmt.Errorf("the version does not meet the minimum version: %s", cephver.Minimum.String())
+			return errors.Errorf("the version does not meet the minimum version: %s", cephver.Minimum.String())
 		}
 
 		if !version.Supported() {
 			logger.Warningf("unsupported ceph version detected: %s.", version)
 			if !c.Spec.CephVersion.AllowUnsupported {
-				return fmt.Errorf("allowUnsupported must be set to true to run with this version: %v", version)
+				return errors.Errorf("allowUnsupported must be set to true to run with this version: %+v", version)
 			}
 		}
 	}
@@ -163,7 +163,7 @@ func (c *cluster) validateCephVersion(version *cephver.CephVersion) error {
 	if c.Spec.External.Enable {
 		c.Info.CephVersion, err = cephspec.ValidateCephVersionsBetweenLocalAndExternalClusters(c.context, c.Namespace, *version)
 		if err != nil {
-			return fmt.Errorf("failed to validate ceph version between external and local. %+v", err)
+			return errors.Wrapf(err, "failed to validate ceph version between external and local")
 		}
 	}
 
@@ -192,7 +192,7 @@ func (c *cluster) validateCephVersion(version *cephver.CephVersion) error {
 			if c.Spec.SkipUpgradeChecks {
 				logger.Warning("ceph is not healthy but SkipUpgradeChecks is set, forcing upgrade.")
 			} else {
-				return fmt.Errorf("ceph status in namespace %s is not healthy, refusing to upgrade. fix the cluster and re-edit the cluster CR to trigger a new orchestation update", c.Namespace)
+				return errors.Errorf("ceph status in namespace %s is not healthy, refusing to upgrade. fix the cluster and re-edit the cluster CR to trigger a new orchestation update", c.Namespace)
 			}
 		}
 		c.isUpgrade = true
@@ -233,7 +233,7 @@ func (c *cluster) doOrchestration(rookImage string, cephVersion cephver.CephVers
 	// These settings should only be modified by a user after they are initialized
 	err := populateConfigOverrideConfigMap(c.context, c.Namespace, c.ownerRef)
 	if err != nil {
-		return fmt.Errorf("failed to populate config override config map. %+v", err)
+		return errors.Wrapf(err, "failed to populate config override config map")
 	}
 
 	if c.Spec.External.Enable {
@@ -241,25 +241,25 @@ func (c *cluster) doOrchestration(rookImage string, cephVersion cephver.CephVers
 		err = config.SetDefaultConfigs(c.context, c.Namespace, c.Info)
 		if err != nil {
 			// Mons are up, so something else is wrong
-			return fmt.Errorf("failed to set Rook and/or user-defined Ceph config options on the external cluster monitors. %+v", err)
+			return errors.Wrapf(err, "failed to set Rook and/or user-defined Ceph config options on the external cluster monitors")
 		}
 
 		// The cluster Identity must be established at this point
 		if !c.Info.IsInitialized() {
-			return fmt.Errorf("the cluster identity was not established: %+v", c.Info)
+			return errors.Errorf("the cluster identity was not established: %+v", c.Info)
 		}
 	} else {
 		// This gets triggered on CR update so let's not run that (mon/mgr/osd daemons)
 		// Start the mon pods
 		clusterInfo, err := c.mons.Start(c.Info, rookImage, cephVersion, *c.Spec, c.isUpgrade)
 		if err != nil {
-			return fmt.Errorf("failed to start the mons. %+v", err)
+			return errors.Wrapf(err, "failed to start the mons")
 		}
 		c.Info = clusterInfo // mons return the cluster's info
 
 		// The cluster Identity must be established at this point
 		if !c.Info.IsInitialized() {
-			return fmt.Errorf("the cluster identity was not established: %+v", c.Info)
+			return errors.Errorf("the cluster identity was not established: %+v", c.Info)
 		}
 
 		mgrs := mgr.New(c.Info, c.context, c.Namespace, rookImage,
@@ -267,7 +267,7 @@ func (c *cluster) doOrchestration(rookImage string, cephVersion cephver.CephVers
 			spec.Network, spec.Dashboard, spec.Monitoring, spec.Mgr, cephv1.GetMgrResources(spec.Resources), c.ownerRef, c.Spec.DataDirHostPath, c.isUpgrade, c.Spec.SkipUpgradeChecks)
 		err = mgrs.Start()
 		if err != nil {
-			return fmt.Errorf("failed to start the ceph mgr. %+v", err)
+			return errors.Wrapf(err, "failed to start the ceph mgr")
 		}
 
 		// Start the OSDs
@@ -276,7 +276,7 @@ func (c *cluster) doOrchestration(rookImage string, cephVersion cephver.CephVers
 			cephv1.GetOSDResources(spec.Resources), c.ownerRef, c.isUpgrade, c.Spec.SkipUpgradeChecks)
 		err = osds.Start()
 		if err != nil {
-			return fmt.Errorf("failed to start the osds. %+v", err)
+			return errors.Wrapf(err, "failed to start the osds")
 		}
 
 		// Start the rbd mirroring daemon(s)
@@ -285,7 +285,7 @@ func (c *cluster) doOrchestration(rookImage string, cephVersion cephver.CephVers
 			cephv1.GetRBDMirrorResources(spec.Resources), c.ownerRef, c.Spec.DataDirHostPath, c.isUpgrade, c.Spec.SkipUpgradeChecks)
 		err = rbdmirror.Start()
 		if err != nil {
-			return fmt.Errorf("failed to start the rbd mirrors. %+v", err)
+			return errors.Wrapf(err, "failed to start the rbd mirrors")
 		}
 
 		logger.Infof("Done creating rook instance in namespace %s", c.Namespace)
@@ -363,7 +363,7 @@ func diffImageSpecAndClusterRunningVersion(imageSpecVersion cephver.CephVersion,
 	numberOfCephVersions := len(runningVersions.Overall)
 	if numberOfCephVersions == 0 {
 		// let's return immediatly
-		return false, fmt.Errorf("no 'overall' section in the ceph versions. %+v", runningVersions.Overall)
+		return false, errors.Errorf("no 'overall' section in the ceph versions. %+v", runningVersions.Overall)
 	}
 
 	if numberOfCephVersions > 1 {
@@ -393,7 +393,7 @@ func diffImageSpecAndClusterRunningVersion(imageSpecVersion cephver.CephVersion,
 			}
 
 			if cephver.IsInferior(imageSpecVersion, clusterRunningVersion) {
-				return true, fmt.Errorf("image spec version %s is lower than the running cluster version %s, downgrading is not supported", imageSpecVersion.String(), clusterRunningVersion.String())
+				return true, errors.Errorf("image spec version %s is lower than the running cluster version %s, downgrading is not supported", imageSpecVersion.String(), clusterRunningVersion.String())
 			}
 		}
 	}

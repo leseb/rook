@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	rookalpha "github.com/rook/rook/pkg/apis/rook.io/v1alpha2"
 	opmon "github.com/rook/rook/pkg/operator/ceph/cluster/mon"
@@ -136,7 +137,7 @@ func (c *Cluster) makeDeployment(osdProps osdProperties, osd OSDInfo) (*apps.Dep
 	}
 
 	if len(volumes) == 0 {
-		return nil, fmt.Errorf("empty volumes")
+		return nil, errors.New("empty volumes")
 	}
 
 	storeType := config.Bluestore
@@ -431,7 +432,7 @@ func (c *Cluster) provisionPodTemplateSpec(osdProps osdProperties, restart v1.Re
 	}
 
 	if len(volumes) == 0 {
-		return nil, fmt.Errorf("empty volumes")
+		return nil, errors.New("empty volumes")
 	}
 
 	podSpec := v1.PodSpec{

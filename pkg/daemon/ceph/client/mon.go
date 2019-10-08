@@ -17,8 +17,8 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/rook/rook/pkg/clusterd"
 )
 
@@ -66,13 +66,13 @@ func GetMonStatus(context *clusterd.Context, clusterName string, debug bool) (Mo
 	cmd.Debug = debug
 	buf, err := cmd.Run()
 	if err != nil {
-		return MonStatusResponse{}, fmt.Errorf("mon status failed. %+v", err)
+		return MonStatusResponse{}, errors.Wrapf(err, "mon status failed")
 	}
 
 	var resp MonStatusResponse
 	err = json.Unmarshal(buf, &resp)
 	if err != nil {
-		return MonStatusResponse{}, fmt.Errorf("unmarshal failed: %+v.  raw buffer response: %s", err, buf)
+		return MonStatusResponse{}, errors.Wrapf(err, "unmarshal failed. raw buffer response: %s", buf)
 	}
 
 	return resp, nil
@@ -97,12 +97,12 @@ func GetMonTimeStatus(context *clusterd.Context, clusterName string) (*MonTimeSt
 	args := []string{"time-sync-status"}
 	buf, err := NewCephCommand(context, clusterName, args).Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get time sync status: %+v", err)
+		return nil, errors.Wrapf(err, "failed to get time sync status")
 	}
 
 	var timeStatus MonTimeStatus
 	if err := json.Unmarshal(buf, &timeStatus); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal time sync status response: %+v", err)
+		return nil, errors.Wrapf(err, "failed to unmarshal time sync status response")
 	}
 
 	return &timeStatus, nil

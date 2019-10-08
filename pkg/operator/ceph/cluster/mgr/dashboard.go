@@ -19,18 +19,18 @@ package mgr
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os/exec"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rook/rook/pkg/daemon/ceph/client"
 	cephver "github.com/rook/rook/pkg/operator/ceph/version"
 	"github.com/rook/rook/pkg/operator/k8sutil"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -64,19 +64,19 @@ func (c *Cluster) configureDashboard(m *mgrConfig) error {
 	if c.dashboard.Enabled {
 		// expose the dashboard service
 		if _, err := c.context.Clientset.CoreV1().Services(c.Namespace).Create(dashboardService); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return fmt.Errorf("failed to create dashboard mgr service. %+v", err)
+			if !kerrors.IsAlreadyExists(err) {
+				return errors.Wrapf(err, "failed to create dashboard mgr service")
 			}
 			logger.Infof("dashboard service already exists")
 			original, err := c.context.Clientset.CoreV1().Services(c.Namespace).Get(dashboardService.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get dashboard service. %+v", err)
+				return errors.Wrapf(err, "failed to get dashboard service")
 			}
 			if original.Spec.Ports[0].Port != int32(m.DashboardPort) {
 				logger.Infof("dashboard port changed. updating service")
 				original.Spec.Ports[0].Port = int32(m.DashboardPort)
 				if _, err := c.context.Clientset.CoreV1().Services(c.Namespace).Update(original); err != nil {
-					return fmt.Errorf("failed to update dashboard mgr service. %+v", err)
+					return errors.Wrapf(err, "failed to update dashboard mgr service")
 				}
 			}
 		} else {
@@ -85,8 +85,8 @@ func (c *Cluster) configureDashboard(m *mgrConfig) error {
 	} else {
 		// delete the dashboard service if it exists
 		err := c.context.Clientset.CoreV1().Services(c.Namespace).Delete(dashboardService.Name, &metav1.DeleteOptions{})
-		if err != nil && !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to delete dashboard service. %+v", err)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return errors.Wrapf(err, "failed to delete dashboard service")
 		}
 	}
 
@@ -97,15 +97,15 @@ func (c *Cluster) configureDashboard(m *mgrConfig) error {
 func (c *Cluster) toggleDashboardModule(m *mgrConfig) error {
 	if c.dashboard.Enabled {
 		if err := client.MgrEnableModule(c.context, c.Namespace, dashboardModuleName, true); err != nil {
-			return fmt.Errorf("failed to enable mgr dashboard module. %+v", err)
+			return errors.Wrapf(err, "failed to enable mgr dashboard module")
 		}
 
 		if err := c.initializeSecureDashboard(); err != nil {
-			return fmt.Errorf("failed to initialize dashboard. %+v", err)
+			return errors.Wrapf(err, "failed to initialize dashboard")
 		}
 
 		if err := c.configureDashboardModule(m); err != nil {
-			return fmt.Errorf("failed to configure mgr dashboard module. %+v", err)
+			return errors.Wrapf(err, "failed to configure mgr dashboard module")
 		}
 	} else {
 		if err := client.MgrDisableModule(c.context, c.Namespace, dashboardModuleName); err != nil {
@@ -162,13 +162,13 @@ func (c *Cluster) initializeSecureDashboard() error {
 
 	password, err := c.getOrGenerateDashboardPassword()
 	if err != nil {
-		return fmt.Errorf("failed to generate a password. %+v", err)
+		return errors.Wrapf(err, "failed to generate a password")
 	}
 
 	if c.dashboard.SSL {
 		alreadyCreated, err := c.createSelfSignedCert()
 		if err != nil {
-			return fmt.Errorf("failed to create a self signed cert. %+v", err)
+			return errors.Wrapf(err, "failed to create a self signed cert")
 		}
 		if alreadyCreated {
 			return nil
@@ -176,7 +176,7 @@ func (c *Cluster) initializeSecureDashboard() error {
 	}
 
 	if err := c.setLoginCredentials(password); err != nil {
-		return fmt.Errorf("failed to set login creds. %+v", err)
+		return errors.Wrapf(err, "failed to set login creds")
 	}
 
 	return c.restartDashboard()
@@ -206,7 +206,7 @@ func (c *Cluster) createSelfSignedCert() (bool, error) {
 					continue
 				}
 			}
-			return false, fmt.Errorf("failed to create self signed cert on mgr. %+v", err)
+			return false, errors.Wrapf(err, "failed to create self signed cert on mgr")
 		}
 		break
 	}
@@ -234,7 +234,7 @@ func (c *Cluster) setLoginCredentials(password string) error {
 		return cmd.Run()
 	}, c.exitCode, 5, invalidArgErrorCode, dashboardInitWaitTime)
 	if err != nil {
-		return fmt.Errorf("failed to set login creds on mgr. %+v", err)
+		return errors.Wrapf(err, "failed to set login creds on mgr")
 	}
 	return nil
 }
@@ -245,8 +245,8 @@ func (c *Cluster) getOrGenerateDashboardPassword() (string, error) {
 		logger.Infof("the dashboard secret was already generated")
 		return decodeSecret(secret)
 	}
-	if !errors.IsNotFound(err) {
-		return "", fmt.Errorf("failed to get dashboard secret. %+v", err)
+	if !kerrors.IsNotFound(err) {
+		return "", errors.Wrapf(err, "failed to get dashboard secret")
 	}
 
 	// Generate a password
@@ -268,7 +268,7 @@ func (c *Cluster) getOrGenerateDashboardPassword() (string, error) {
 
 	_, err = c.context.Clientset.CoreV1().Secrets(c.Namespace).Create(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to save dashboard secret. %+v", err)
+		return "", errors.Wrapf(err, "failed to save dashboard secret")
 	}
 	return password, nil
 }
@@ -285,7 +285,7 @@ func generatePassword(length int) string {
 func decodeSecret(secret *v1.Secret) (string, error) {
 	password, ok := secret.Data[passwordKeyName]
 	if !ok {
-		return "", fmt.Errorf("password not found in secret")
+		return "", errors.New("password not found in secret")
 	}
 	return string(password), nil
 }

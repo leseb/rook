@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	rookalpha "github.com/rook/rook/pkg/apis/rook.io/v1alpha2"
 	"github.com/rook/rook/pkg/clusterd"
@@ -38,7 +39,7 @@ import (
 	apps "k8s.io/api/apps/v1"
 	batch "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -166,7 +167,7 @@ func (c *Cluster) Start() error {
 	// This is valid for both Filestore and Bluestore
 	err := opspec.CheckPodMemory(c.resources, cephOsdPodMinimumMemory)
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return errors.Wrap(err, "error checking pod memory")
 	}
 
 	logger.Infof("start running osds in namespace %s", c.Namespace)
@@ -184,7 +185,7 @@ func (c *Cluster) Start() error {
 	c.startProvisioningOverNodes(config)
 
 	if len(config.errorMessages) > 0 {
-		return fmt.Errorf("%d failures encountered while running osds in namespace %s: %+v",
+		return errors.Errorf("%d failures encountered while running osds in namespace %s: %+v",
 			len(config.errorMessages), c.Namespace, strings.Join(config.errorMessages, "\n"))
 	}
 
@@ -204,7 +205,7 @@ func (c *Cluster) Start() error {
 				for v := range versions.Osd {
 					osdVersion, err := cephver.ExtractCephVersion(v)
 					if err != nil {
-						return fmt.Errorf("failed to extract ceph version. %+v", err)
+						return errors.Wrapf(err, "failed to extract ceph version")
 					}
 					// if the version of these OSDs is Nautilus then we run the command
 					if osdVersion.IsAtLeastNautilus() {
@@ -382,7 +383,7 @@ func (c *Cluster) startProvisioningOverNodes(config *provisionConfig) {
 
 func (c *Cluster) runJob(job *batch.Job, nodeName string, config *provisionConfig, action string) bool {
 	if err := k8sutil.RunReplaceableJob(c.context.Clientset, job, false); err != nil {
-		if !errors.IsAlreadyExists(err) {
+		if !kerrors.IsAlreadyExists(err) {
 			// we failed to create job, update the orchestration status for this node
 			message := fmt.Sprintf("failed to create %s job for node %s. %+v", action, nodeName, err)
 			c.handleOrchestrationFailure(config, nodeName, message)
@@ -418,7 +419,7 @@ func (c *Cluster) startOSDDaemonsOnPVC(pvcName string, config *provisionConfig, 
 		}
 		_, err = c.context.Clientset.AppsV1().Deployments(c.Namespace).Create(dp)
 		if err != nil {
-			if !errors.IsAlreadyExists(err) {
+			if !kerrors.IsAlreadyExists(err) {
 				// we failed to create job, update the orchestration status for this pvc
 				logger.Warningf("failed to create osd deployment for pvc %s, osd %v: %+v", osdProps.pvc.ClaimName, osd, err)
 				continue
@@ -485,7 +486,7 @@ func (c *Cluster) startOSDDaemonsOnNode(nodeName string, config *provisionConfig
 
 		_, err = c.context.Clientset.AppsV1().Deployments(c.Namespace).Create(dp)
 		if err != nil {
-			if !errors.IsAlreadyExists(err) {
+			if !kerrors.IsAlreadyExists(err) {
 				// we failed to create job, update the orchestration status for this node
 				logger.Warningf("failed to create osd deployment for node %s, osd %v: %+v", n.Name, osd, err)
 				continue
@@ -628,7 +629,7 @@ func (c *Cluster) discoverStorageNodes() (map[string][]*apps.Deployment, error) 
 	listOpts := metav1.ListOptions{LabelSelector: fmt.Sprintf("app=%s", AppName)}
 	osdDeployments, err := c.context.Clientset.AppsV1().Deployments(c.Namespace).List(listOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list osd deployment: %+v", err)
+		return nil, errors.Wrapf(err, "failed to list osd deployment")
 	}
 	discoveredNodes := map[string][]*apps.Deployment{}
 	for _, osdDeployment := range osdDeployments.Items {
@@ -702,7 +703,7 @@ func (c *Cluster) isSafeToRemoveNode(nodeName string, osdDeployments []*apps.Dep
 	if (clusterAvailableBytes - nodeUsage) < int64((float64(clusterTotalBytes) * clusterAvailableSpaceReserve)) {
 		// the remaining available space in the cluster after the space that this node is using gets moved elsewhere
 		// would be less than the cluster available space reserve, it's not safe to remove this node
-		return fmt.Errorf("insufficient available space in the cluster to remove node %s. node usage: %s, cluster available: %s",
+		return errors.Errorf("insufficient available space in the cluster to remove node %s. node usage: %s, cluster available: %s",
 			nodeName, display.BytesToString(uint64(nodeUsage)), display.BytesToString(uint64(clusterAvailableBytes)))
 	}
 
@@ -749,13 +750,13 @@ func (c *Cluster) getOSDPropsForPVC(pvcName string) (osdProperties, error) {
 				var err error
 				osdProps.crushHostname, err = c.getPVCHostName(pvcName)
 				if err != nil {
-					return osdProperties{}, fmt.Errorf("Unable to get crushHostname of non portable pvc %s. %+v", pvcName, err)
+					return osdProperties{}, errors.Wrapf(err, "Unable to get crushHostname of non portable pvc %s", pvcName)
 				}
 			}
 			return osdProps, nil
 		}
 	}
-	return osdProperties{}, fmt.Errorf("No valid VolumeSource found for pvc %s", pvcName)
+	return osdProperties{}, errors.Errorf("no valid VolumeSource found for pvc %s", pvcName)
 }
 
 func (c *Cluster) getPVCHostName(pvcName string) (string, error) {

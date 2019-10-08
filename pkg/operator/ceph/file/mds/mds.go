@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	"github.com/rook/rook/pkg/clusterd"
 	"github.com/rook/rook/pkg/daemon/ceph/client"
@@ -32,7 +33,7 @@ import (
 	opspec "github.com/rook/rook/pkg/operator/ceph/spec"
 	cephver "github.com/rook/rook/pkg/operator/ceph/version"
 	"github.com/rook/rook/pkg/operator/k8sutil"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -102,7 +103,7 @@ func (c *Cluster) Start() error {
 	// Validate pod's memory if specified
 	err := opspec.CheckPodMemory(c.fs.Spec.MetadataServer.Resources, cephMdsPodMinimumMemory)
 	if err != nil {
-		return fmt.Errorf("%+v", err)
+		return errors.Wrap(err, "error checking pod memory")
 	}
 
 	// If attempt was made to prepare daemons for upgrade, make sure that an attempt is made to
@@ -140,22 +141,22 @@ func (c *Cluster) Start() error {
 		logger.Debugf("starting mds: %+v", d)
 		createdDeployment, createErr := c.context.Clientset.AppsV1().Deployments(c.fs.Namespace).Create(d)
 		if createErr != nil {
-			if !errors.IsAlreadyExists(createErr) {
-				return fmt.Errorf("failed to create mds deployment %s: %+v", mdsConfig.ResourceName, createErr)
+			if !kerrors.IsAlreadyExists(createErr) {
+				return errors.Wrapf(createErr, "failed to create mds deployment %s", mdsConfig.ResourceName)
 			}
 			logger.Infof("deployment for mds %s already exists. updating if needed", mdsConfig.ResourceName)
 			createdDeployment, err = c.context.Clientset.AppsV1().Deployments(c.fs.Namespace).Get(d.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get existing mds deployment %s for update: %+v", d.Name, err)
+				return errors.Wrapf(err, "failed to get existing mds deployment %s for update", d.Name)
 			}
 		}
 		// create unique key for each mds saved to k8s secret
 		if err := c.generateKeyring(mdsConfig, createdDeployment.UID); err != nil {
-			return fmt.Errorf("failed to generate keyring for %s. %+v", resourceName, err)
+			return errors.Wrapf(err, "failed to generate keyring for %s", resourceName)
 		}
 		// keyring must be generated before update-and-wait since no keyring will prevent the
 		// deployment from reaching ready state
-		if createErr != nil && errors.IsAlreadyExists(createErr) {
+		if createErr != nil && kerrors.IsAlreadyExists(createErr) {
 			// Always invoke ceph version before an upgrade so we are sure to be up-to-date
 			daemon := string(config.MdsType)
 			var cephVersionToUse cephver.CephVersion
@@ -170,7 +171,7 @@ func (c *Cluster) Start() error {
 				cephVersionToUse = currentCephVersion
 			}
 			if err = UpdateDeploymentAndWait(c.context, d, c.fs.Namespace, daemon, daemonLetterID, cephVersionToUse, c.isUpgrade, c.clusterSpec.SkipUpgradeChecks); err != nil {
-				return fmt.Errorf("failed to update mds deployment %s. %+v", d.Name, err)
+				return errors.Wrapf(err, "failed to update mds deployment %s", d.Name)
 			}
 		}
 		desiredDeployments[d.GetName()] = true // add deployment name to improvised set
@@ -178,7 +179,7 @@ func (c *Cluster) Start() error {
 	}
 
 	if err := c.scaleDownDeployments(replicas, desiredDeployments); err != nil {
-		return fmt.Errorf("failed to scale down mds deployments. %+v", err)
+		return errors.Wrapf(err, "failed to scale down mds deployments")
 	}
 
 	return nil
@@ -188,10 +189,9 @@ func (c *Cluster) scaleDownDeployments(replicas int32, desiredDeployments map[st
 	// Remove extraneous mds deployments if they exist
 	deps, err := getMdsDeployments(c.context, c.fs.Namespace, c.fs.Name)
 	if err != nil {
-		return fmt.Errorf(
-			fmt.Sprintf("cannot verify the removal of extraneous mds deployments for filesystem %s. ", c.fs.Name) +
-				fmt.Sprintf("USER should make sure that only deployments %+v exist which match the filesystem's label selector", desiredDeployments) +
-				fmt.Sprintf(": %+v", err),
+		return errors.Wrapf(err,
+			fmt.Sprintf("cannot verify the removal of extraneous mds deployments for filesystem %s. ", c.fs.Name)+
+				fmt.Sprintf("USER should make sure that only deployments %+v exist which match the filesystem's label selector", desiredDeployments),
 		)
 	}
 	if !(len(deps.Items) > int(replicas)) {
@@ -226,7 +226,7 @@ func (c *Cluster) scaleDownDeployments(replicas int32, desiredDeployments map[st
 		}
 	}
 	if errCount > 0 {
-		return fmt.Errorf("%d error(s) during deletion of extraneous mds deployments, see logs above", errCount)
+		return errors.Wrapf(err, "%d error(s) during deletion of extraneous mds deployments, see logs above", errCount)
 	}
 	logger.Infof("successfully deleted extraneous mds deployments")
 
@@ -250,7 +250,7 @@ func DeleteCluster(context *clusterd.Context, namespace, fsName string) error {
 		}
 	}
 	if errCount > 0 {
-		return fmt.Errorf("%d error(s) during deletion of mds cluster for filesystem %s, see logs above", errCount, fsName)
+		return errors.Wrapf(err, "%d error(s) during deletion of mds cluster for filesystem %s, see logs above", errCount, fsName)
 	}
 	return nil
 }
@@ -272,7 +272,7 @@ func prepareForDaemonUpgrade(
 	//              http://docs.ceph.com/docs/mimic/cephfs/upgrading/
 	// As of Oct. 2018, this is only necessary for Luminous and Mimic.
 	if err := client.SetNumMDSRanks(context, cephVersion, clusterName, fsName, 1); err != nil {
-		return fmt.Errorf("Could not Prepare filesystem %s for daemon upgrade: %+v", fsName, err)
+		return errors.Wrapf(err, "Could not Prepare filesystem %s for daemon upgrade", fsName)
 	}
 	if err := client.WaitForActiveRanks(context, clusterName, fsName, 1, false, timeout); err != nil {
 		return err
@@ -299,7 +299,7 @@ func finishedWithDaemonUpgrade(
 	//              http://docs.ceph.com/docs/mimic/cephfs/upgrading/
 	// TODO: Unknown (Oct. 2018) if any parts can be removed once Rook no longer supports Mimic.
 	if err := client.SetNumMDSRanks(context, cephVersion, clusterName, fsName, activeMDSCount); err != nil {
-		return fmt.Errorf("Failed to restore filesystem %s following daemon upgrade: %+v", fsName, err)
+		return errors.Wrapf(err, "Failed to restore filesystem %s following daemon upgrade", fsName)
 	} // * End of noted section 1
 	return nil
 }

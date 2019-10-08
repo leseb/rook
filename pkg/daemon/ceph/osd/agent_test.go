@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/rook/rook/pkg/clusterd"
 	cephconfig "github.com/rook/rook/pkg/daemon/ceph/config"
 	"github.com/rook/rook/pkg/daemon/ceph/test"
@@ -229,7 +230,7 @@ func testOSDAgentWithDevicesHelper(t *testing.T, storeConfig config.StoreConfig,
 			}
 			if len(args) == 3 && args[2] == "--prepare" && legacyProvisioner {
 				// return an error for ceph-volume so we use the legacy provisioner
-				return ``, fmt.Errorf("ceph-volume not supported")
+				return ``, errors.New("ceph-volume not supported")
 			}
 		}
 		return "", nil
@@ -397,7 +398,7 @@ func createTestAgent(t *testing.T, devices, configDir, nodeName string, storeCon
 			if command == "ceph-volume" {
 				if len(args) == 3 && args[0] == "lvm" && args[1] == "batch" && args[2] == "--prepare" {
 					logger.Infof("test c-v not supported")
-					return "", fmt.Errorf("c-v not supported")
+					return "", errors.New("c-v not supported")
 				}
 			}
 			return "", nil
@@ -447,7 +448,7 @@ func TestGetPartitionPerfScheme(t *testing.T) {
 				currOsdID++
 				return fmt.Sprintf(`{"osdid": %d}`, currOsdID), nil
 			}
-			return "", fmt.Errorf("unexpected command '%+v'", args)
+			return "", errors.Errorf("unexpected command '%+v'", args)
 		},
 		MockExecuteCommandWithOutput: func(debug bool, actionName string, command string, args ...string) (string, error) {
 			logger.Infof("Command: %s %+v", command, args)
@@ -468,7 +469,7 @@ func TestGetPartitionPerfScheme(t *testing.T) {
 			if command == "udevadm" {
 				return "", nil
 			}
-			return "", fmt.Errorf("unexpected command %s %+v", command, args)
+			return "", errors.Errorf("unexpected command %s %s", command, args)
 		},
 	}
 	context.Executor = executor
@@ -533,7 +534,7 @@ func TestGetPartitionSchemeDiskInUse(t *testing.T) {
 			if command == "udevadm" {
 				return "", nil
 			}
-			return "", fmt.Errorf("unexpected command %s %+v", command, args)
+			return "", errors.Errorf("unexpected command %s %s", command, args)
 		},
 	}
 	context := &clusterd.Context{
@@ -598,7 +599,7 @@ func TestGetPartitionSchemeDiskNameChanged(t *testing.T) {
 			if command == "udevadm" {
 				return "", nil
 			}
-			return "", fmt.Errorf("unexpected command %s %+v", command, args)
+			return "", errors.Errorf("unexpected command %s %s", command, args)
 		},
 	}
 	context := &clusterd.Context{

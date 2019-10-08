@@ -16,9 +16,9 @@ limitations under the License.
 package mgr
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/rook/rook/pkg/clusterd"
 	cephconfig "github.com/rook/rook/pkg/daemon/ceph/config"
 	cephver "github.com/rook/rook/pkg/operator/ceph/version"
@@ -48,7 +48,7 @@ func TestOrchestratorModules(t *testing.T) {
 			rookBackendSet = true
 			return "", nil
 		}
-		return "", fmt.Errorf("unexpected ceph command '%v'", args)
+		return "", errors.Errorf("unexpected ceph command %q", args)
 	}
 
 	clusterInfo := &cephconfig.ClusterInfo{

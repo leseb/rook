@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 
 	"github.com/rook/rook/pkg/operator/ceph/cluster/osd"
 	"github.com/rook/rook/pkg/operator/ceph/disruption/controllerconfig"
@@ -75,18 +76,18 @@ func (r *ReconcileNode) reconcile(request reconcile.Request) (reconcile.Result, 
 
 	err := r.client.Get(context.TODO(), request.NamespacedName, node)
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("Could not get node %s", request.NamespacedName)
+		return reconcile.Result{}, errors.Errorf("Could not get node %s", request.NamespacedName)
 	}
 
 	nodeHostnameLabel, ok := node.ObjectMeta.Labels[corev1.LabelHostname]
 	if !ok {
-		return reconcile.Result{}, fmt.Errorf("Label key %s does not exist on node %s", corev1.LabelHostname, request.NamespacedName)
+		return reconcile.Result{}, errors.Errorf("Label key %s does not exist on node %s", corev1.LabelHostname, request.NamespacedName)
 	}
 
 	osdPodList := &corev1.PodList{}
 	err = r.client.List(context.TODO(), osdPodList, client.MatchingLabels{k8sutil.AppAttr: osd.AppName})
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("could not list the osd pods: %+v", err)
+		return reconcile.Result{}, errors.Wrapf(err, "could not list the osd pods")
 	}
 
 	// map with tolerations as keys and empty struct as values for uniqueness
@@ -156,7 +157,7 @@ func (r *ReconcileNode) reconcile(request reconcile.Request) (reconcile.Result, 
 	if occupiedByOSD {
 		op, err := controllerutil.CreateOrUpdate(context.TODO(), r.client, deploy, mutateFunc)
 		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("Node reconcile failed on op: %s : %+v", op, err)
+			return reconcile.Result{}, errors.Wrapf(err, "node reconcile failed on op %s", op)
 		}
 		logger.Debugf("deployment successfully reconciled for node %s. operation: %s", request.Name, op)
 	} else {

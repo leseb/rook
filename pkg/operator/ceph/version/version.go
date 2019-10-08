@@ -22,6 +22,7 @@ import (
 	"strconv"
 
 	"github.com/coreos/pkg/capnslog"
+	"github.com/pkg/errors"
 )
 
 // CephVersion represents the Ceph version format
@@ -86,22 +87,22 @@ func (v *CephVersion) ReleaseName() string {
 func ExtractCephVersion(src string) (*CephVersion, error) {
 	m := versionPattern.FindStringSubmatch(src)
 	if m == nil {
-		return nil, fmt.Errorf("failed to parse version from: %s", src)
+		return nil, errors.Errorf("failed to parse version from: %s", src)
 	}
 
 	major, err := strconv.Atoi(m[1])
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse version major part: %s", m[0])
+		return nil, errors.Errorf("failed to parse version major part: %s", m[0])
 	}
 
 	minor, err := strconv.Atoi(m[2])
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse version minor part: %s", m[1])
+		return nil, errors.Errorf("failed to parse version minor part: %s", m[1])
 	}
 
 	extra, err := strconv.Atoi(m[3])
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse version extra part: %s", m[2])
+		return nil, errors.Errorf("failed to parse version extra part: %s", m[2])
 	}
 
 	return &CephVersion{major, minor, extra}, nil
@@ -226,7 +227,7 @@ func ValidateCephVersionsBetweenLocalAndExternalClusters(localVersion, externalV
 
 	// We only support Nautilus or newer
 	if !externalVersion.IsAtLeastNautilus() {
-		return fmt.Errorf("unsupported ceph version %s, need at least nautilus, delete your cluster CR and create a new one with a correct ceph version", externalVersion.String())
+		return errors.Errorf("unsupported ceph version %s, need at least nautilus, delete your cluster CR and create a new one with a correct ceph version", externalVersion.String())
 	}
 
 	// Identical version, regardless if other CRs are running, it's ok!
@@ -236,7 +237,7 @@ func ValidateCephVersionsBetweenLocalAndExternalClusters(localVersion, externalV
 
 	// Local version must never be higher than the external one
 	if IsSuperior(localVersion, externalVersion) {
-		return fmt.Errorf("local cluster ceph version is higher %s than the external cluster %s, this must never happen", externalVersion.String(), localVersion.String())
+		return errors.Errorf("local cluster ceph version is higher %s than the external cluster %s, this must never happen", externalVersion.String(), localVersion.String())
 	}
 
 	// External cluster was updated to a minor version higher, consider updating too!
