@@ -22,7 +22,6 @@ import (
 
 	"github.com/pkg/errors"
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
-	"github.com/rook/rook/pkg/operator/ceph/cluster/mon"
 	cephconfig "github.com/rook/rook/pkg/operator/ceph/config"
 	"github.com/rook/rook/pkg/operator/ceph/controller"
 	"github.com/rook/rook/pkg/operator/k8sutil"
@@ -136,7 +135,7 @@ func (c *clusterConfig) makeChownInitContainer(rgwConfig *rgwConfig) v1.Containe
 		c.clusterSpec.CephVersion.Image,
 		controller.DaemonVolumeMounts(c.DataPathMap, rgwConfig.ResourceName),
 		c.store.Spec.Gateway.Resources,
-		mon.PodSecurityContext(),
+		controller.PodSecurityContext(),
 	)
 }
 
@@ -166,7 +165,7 @@ func (c *clusterConfig) makeDaemonContainer(rgwConfig *rgwConfig) v1.Container {
 		Env:             controller.DaemonEnvVars(c.clusterSpec.CephVersion.Image),
 		Resources:       c.store.Spec.Gateway.Resources,
 		LivenessProbe:   c.generateLiveProbe(),
-		SecurityContext: mon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 	}
 
 	// If the liveness probe is enabled

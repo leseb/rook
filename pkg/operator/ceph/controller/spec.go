@@ -19,6 +19,7 @@ package controller
 
 import (
 	"fmt"
+	"os"
 	"path"
 
 	"github.com/coreos/pkg/capnslog"
@@ -537,4 +538,32 @@ func (c *daemonConfig) buildAdminSocketCommand() string {
 	}
 
 	return command
+}
+
+// PodSecurityContext detects if the pod needs privileges to run
+func PodSecurityContext() *v1.SecurityContext {
+	privileged := false
+	if os.Getenv("ROOK_HOSTPATH_REQUIRES_PRIVILEGED") == "true" {
+		privileged = true
+	}
+
+	return &v1.SecurityContext{
+		Privileged: &privileged,
+	}
+}
+
+//
+// This container uses StoredLogAndCrashVolume() to store logs
+func logCollectorContainer(ns string, c cephv1.ClusterSpec) *v1.Container {
+	return &v1.Container{
+		Name: "log-collector",
+		Command: []string{
+			"sleep infinity",
+		},
+		Image:           c.CephVersion.Image,
+		VolumeMounts:    DaemonVolumeMounts(config.NewDatalessDaemonDataPathMap(ns, c.DataDirHostPath), ""),
+		SecurityContext: PodSecurityContext(),
+		Resources:       cephv1.GetMonResources(c.Resources),
+		Lifecycle:       &v1.Lifecycle{},
+	}
 }

@@ -26,7 +26,6 @@ import (
 	"github.com/pkg/errors"
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	kms "github.com/rook/rook/pkg/daemon/ceph/osd/kms"
-	opmon "github.com/rook/rook/pkg/operator/ceph/cluster/mon"
 	"github.com/rook/rook/pkg/operator/ceph/cluster/osd/config"
 	opconfig "github.com/rook/rook/pkg/operator/ceph/config"
 	"github.com/rook/rook/pkg/operator/ceph/controller"
@@ -713,7 +712,7 @@ func (c *Cluster) getPVCInitContainer(osdProps osdProperties) v1.Container {
 			},
 		},
 		VolumeMounts:    []v1.VolumeMount{getPvcOSDBridgeMount(osdProps.pvc.ClaimName)},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }
@@ -744,7 +743,7 @@ func (c *Cluster) getPVCInitContainerActivate(mountPath string, osdProps osdProp
 			},
 		},
 		VolumeMounts:    []v1.VolumeMount{getPvcOSDBridgeMountActivate(mountPath, osdProps.pvc.ClaimName)},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }
@@ -843,7 +842,7 @@ func (c *Cluster) generateEncryptionCopyBlockContainer(resources v1.ResourceRequ
 		// volumeMountPVCName is crucial, especially when the block we copy is the metadata block
 		// its value must be the name of the block PV so that all init containers use the same bridge (the emptyDir shared by all the init containers)
 		VolumeMounts:    []v1.VolumeMount{getPvcOSDBridgeMountActivate(mountPath, volumeMountPVCName), getDeviceMapperMount()},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       resources,
 	}
 }
@@ -889,7 +888,7 @@ func (c *Cluster) getPVCMetadataInitContainer(mountPath string, osdProps osdProp
 				Name:      fmt.Sprintf("%s-bridge", osdProps.metadataPVC.ClaimName),
 			},
 		},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }
@@ -922,7 +921,7 @@ func (c *Cluster) getPVCMetadataInitContainerActivate(mountPath string, osdProps
 		// We need to call getPvcOSDBridgeMountActivate() so that we can copy the metadata block into the "main" empty dir
 		// This empty dir is passed along every init container
 		VolumeMounts:    []v1.VolumeMount{getPvcOSDBridgeMountActivate(mountPath, osdProps.pvc.ClaimName)},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }
@@ -947,7 +946,7 @@ func (c *Cluster) getPVCWalInitContainer(mountPath string, osdProps osdPropertie
 				Name:      fmt.Sprintf("%s-bridge", osdProps.walPVC.ClaimName),
 			},
 		},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }
@@ -980,7 +979,7 @@ func (c *Cluster) getPVCWalInitContainerActivate(mountPath string, osdProps osdP
 		// We need to call getPvcOSDBridgeMountActivate() so that we can copy the wal block into the "main" empty dir
 		// This empty dir is passed along every init container
 		VolumeMounts:    []v1.VolumeMount{getPvcOSDBridgeMountActivate(mountPath, osdProps.pvc.ClaimName)},
-		SecurityContext: opmon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		Resources:       osdProps.resources,
 	}
 }

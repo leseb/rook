@@ -27,7 +27,6 @@ import (
 	rookcephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
 	rookv1 "github.com/rook/rook/pkg/apis/rook.io/v1"
 	"github.com/rook/rook/pkg/daemon/ceph/client"
-	"github.com/rook/rook/pkg/operator/ceph/cluster/mon"
 	"github.com/rook/rook/pkg/operator/ceph/config"
 	"github.com/rook/rook/pkg/operator/ceph/config/keyring"
 	"github.com/rook/rook/pkg/operator/ceph/controller"
@@ -165,7 +164,7 @@ func (c *Cluster) makeChownInitContainer(mgrConfig *mgrConfig) v1.Container {
 		c.spec.CephVersion.Image,
 		controller.DaemonVolumeMounts(mgrConfig.DataPathMap, mgrConfig.ResourceName),
 		cephv1.GetMgrResources(c.spec.Resources),
-		mon.PodSecurityContext(),
+		controller.PodSecurityContext(),
 	)
 }
 
@@ -246,7 +245,7 @@ func (c *Cluster) makeMgrDaemonContainer(mgrConfig *mgrConfig) v1.Container {
 			c.cephMgrOrchestratorModuleEnvs()...,
 		),
 		Resources:       cephv1.GetMgrResources(c.spec.Resources),
-		SecurityContext: mon.PodSecurityContext(),
+		SecurityContext: controller.PodSecurityContext(),
 		LivenessProbe:   getDefaultMgrLivenessProbe(),
 	}
 
