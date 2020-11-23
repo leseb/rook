@@ -125,3 +125,5 @@ var ClusterResource = k8sutil.CustomResource{
 	Kind:       reflect.TypeOf(cephv1.CephCluster{}).Name(),
 	APIVersion: fmt.Sprintf("%s/%s", cephv1.CustomResourceGroup, cephv1.Version),
 }
+
+// Check points

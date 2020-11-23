@@ -102,6 +102,8 @@ type ReconcileCephCluster struct {
 	scheme            *runtime.Scheme
 	context           *clusterd.Context
 	clusterController *ClusterController
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 // Add creates a new CephCluster Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -111,18 +113,24 @@ func Add(mgr manager.Manager, context *clusterd.Context, clusterController *Clus
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, context *clusterd.Context, clusterController *ClusterController) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, clusterContext *clusterd.Context, clusterController *ClusterController) reconcile.Reconciler {
 	// Add the cephv1 scheme to the manager scheme so that the controller knows about it
 	mgrScheme := mgr.GetScheme()
 	if err := cephv1.AddToScheme(mgr.GetScheme()); err != nil {
 		panic(err)
 	}
 
+	// CHANGE ME?!
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &ReconcileCephCluster{
 		client:            mgr.GetClient(),
 		scheme:            mgrScheme,
-		context:           context,
+		context:           clusterContext,
 		clusterController: clusterController,
+		ctx:               ctx,
+		cancel:            cancel,
 	}
 }
 
