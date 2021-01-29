@@ -29,15 +29,7 @@ import (
 
 // PoolMirroringStatus is the mirroring status of a given pool
 type PoolMirroringStatus struct {
-	Summary SummarySpec `json:"summary"`
-}
-
-// SummarySpec is the summary output of the command
-type SummarySpec struct {
-	Health       string      `json:"health"`
-	DaemonHealth string      `json:"daemon_health"`
-	ImageHealth  string      `json:"image_health"`
-	States       interface{} `json:"states"`
+	Summary json.RawMessage `json:"summary"`
 }
 
 // PoolMirroringInfo is the mirroring info of a given pool
@@ -54,12 +46,6 @@ type PeersSpec struct {
 	SiteName   string `json:"site_name"`
 	MirrorUUID string `json:"mirror_uuid"`
 	ClientName string `json:"client_name"`
-}
-
-// SnapshotScheduleStatus is the mirroring status of a given pool
-type SnapshotScheduleStatus struct {
-	ScheduleTime string `json:"schedule_time"`
-	Image        string `json:"image"`
 }
 
 // SnapshotSchedule is a schedule
@@ -269,7 +255,7 @@ func removeSnapshotSchedules(context *clusterd.Context, clusterInfo *ClusterInfo
 }
 
 // GetSnapshotScheduleStatus configures the snapshots schedule on a mirrored pool
-func GetSnapshotScheduleStatus(context *clusterd.Context, clusterInfo *ClusterInfo, poolName string) ([]SnapshotScheduleStatus, error) {
+func GetSnapshotScheduleStatus(context *clusterd.Context, clusterInfo *ClusterInfo, poolName string) (json.RawMessage, error) {
 	// Build command
 	args := []string{"mirror", "snapshot", "schedule", "status", "--pool", poolName}
 	cmd := NewRBDCommand(context, clusterInfo, args)
@@ -281,14 +267,8 @@ func GetSnapshotScheduleStatus(context *clusterd.Context, clusterInfo *ClusterIn
 		return nil, errors.Wrapf(err, "failed to retrieve snapshot schedule status on pool %q. %s", poolName, string(buf))
 	}
 
-	// Unmarshal JSON into Go struct
-	var snapshotScheduleStatus []SnapshotScheduleStatus
-	if err := json.Unmarshal([]byte(buf), &snapshotScheduleStatus); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal mirror snapshot schedule status response")
-	}
-
 	logger.Debugf("successfully retrieved snapshot schedule status for pool %q", poolName)
-	return snapshotScheduleStatus, nil
+	return json.RawMessage(buf), nil
 }
 
 // listSnapshotSchedules configures the snapshots schedule on a mirrored pool

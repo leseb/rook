@@ -17,6 +17,7 @@ limitations under the License.
 package pool
 
 import (
+	"encoding/json"
 	"time"
 
 	cephv1 "github.com/rook/rook/pkg/apis/ceph.rook.io/v1"
@@ -104,7 +105,8 @@ func (c *mirrorChecker) checkMirroringHealth() error {
 	}
 
 	// If snapshot scheduling is enabled let's add it to the status
-	snapSchedStatus := []cephclient.SnapshotScheduleStatus{}
+	// snapSchedStatus := cephclient.SnapshotScheduleStatus{}
+	snapSchedStatus := json.RawMessage{}
 	if c.poolSpec.Mirroring.SnapshotSchedulesEnabled() {
 		snapSchedStatus, err = cephclient.GetSnapshotScheduleStatus(c.context, c.clusterInfo, c.poolName)
 		if err != nil {
