@@ -182,16 +182,6 @@ func (s *UpgradeSuite) TestUpgradeToMaster() {
 	s.upgradeToMaster()
 
 	s.verifyOperatorImage(installer.VersionMaster)
-
-	// patch the cephblockpool CR due to type change
-	logger.Info("*** PATCHING CEPHBLOCKPOOL ***")
-	fields := []string{"mirroringStatus", "mirroringInfo"}
-	for _, field := range fields {
-		spec := fmt.Sprintf(`{"status":{"%s": {"summary": ""}}}`, field)
-		_, err := s.k8sh.Kubectl("-n", s.namespace, "patch", "CephBlockPools", poolName, "--type=merge", "-p", spec)
-		assert.NoError(s.T(), err)
-	}
-
 	s.verifyRookUpgrade(numOSDs)
 	logger.Infof("Done with automatic upgrade from %s to master", installer.Version1_5)
 	newFile := "post-upgrade-1_5-to-master-file"

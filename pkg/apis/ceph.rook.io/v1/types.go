@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"encoding/json"
 	"time"
 
 	rookv1 "github.com/rook/rook/pkg/apis/rook.io/v1"
@@ -593,20 +592,73 @@ type CephBlockPoolStatus struct {
 
 // MirroringStatusSpec is the status of the pool mirroring
 type MirroringStatusSpec struct {
+	// PoolMirroringStatus is the mirroring status of a pool
 	// +optional
-	Summary string `json:"summary,omitempty"`
+	PoolMirroringStatus `json:",inline"`
+	// LastChecked is the last time time the status was checked
 	// +optional
 	LastChecked string `json:"lastChecked,omitempty"`
+	// LastChanged is the last time time the status last changed
 	// +optional
 	LastChanged string `json:"lastChanged,omitempty"`
+	// Details contains potential status errors
 	// +optional
 	Details string `json:"details,omitempty"`
+}
+
+// PoolMirroringStatus is the pool mirror status
+type PoolMirroringStatus struct {
+	// Summary is the mirroring status summary
+	// +optional
+	Summary *PoolMirroringStatusSummarySpec `json:"summary,omitempty"`
+}
+
+// PoolMirroringStatusSummarySpec is the summary output of the command
+type PoolMirroringStatusSummarySpec struct {
+	// Health is the mirroring health
+	// +optional
+	Health string `json:"health,omitempty"`
+	// DaemonHealth is the health of the mirroring daemon
+	// +optional
+	DaemonHealth string `json:"daemon_health,omitempty"`
+	// ImageHealth is the health of the mirrored image
+	// +optional
+	ImageHealth string `json:"image_health,omitempty"`
+	// States is the various state for all mirrored images
+	// +optional
+	// +nullable
+	States StatesSpec `json:"states,omitempty"`
+}
+
+// StatesSpec are rbd images mirroring state
+type StatesSpec struct {
+	// StartingReplay is when the replay of the mirroring journal starts
+	// +optional
+	StartingReplay int `json:"starting_replay,omitempty"`
+	// Replaying is when the replay of the mirroring journal is on-going
+	// +optional
+	Replaying int `json:"replaying,omitempty"`
+	// Syncing is when the image is syncing
+	// +optional
+	Syncing int `json:"syncing,omitempty"`
+	// StopReplaying is when the replay of the mirroring journal stops
+	// +optional
+	StopReplaying int `json:"stopping_replay,omitempty"`
+	// Stopped is when the mirroring state is stopped
+	// +optional
+	Stopped int `json:"stopped,omitempty"`
+	// Unknown is when the mirroring state is unknown
+	// +optional
+	Unknown int `json:"unknown,omitempty"`
+	// Error is when the mirroring state is errored
+	// +optional
+	Error int `json:"error,omitempty"`
 }
 
 // MirroringInfoSpec is the status of the pool mirroring
 type MirroringInfoSpec struct {
 	// +optional
-	Summary string `json:"summary,omitempty"`
+	*PoolMirroringInfo `json:",inline"`
 	// +optional
 	LastChecked string `json:"lastChecked,omitempty"`
 	// +optional
@@ -615,16 +667,78 @@ type MirroringInfoSpec struct {
 	Details string `json:"details,omitempty"`
 }
 
+// PoolMirroringInfo is the mirroring info of a given pool
+type PoolMirroringInfo struct {
+	// Mode is the mirroring mode
+	// +optional
+	Mode string `json:"mode,omitempty"`
+	// SiteName is the current site name
+	// +optional
+	SiteName string `json:"site_name,omitempty"`
+	// Peers are the list of peer sites connected to that cluster
+	// +optional
+	Peers []PeersSpec `json:"peers,omitempty"`
+}
+
+// PeersSpec contains peer details
+type PeersSpec struct {
+	// UUID is the peer UUID
+	// +optional
+	UUID string `json:"uuid,omitempty"`
+	// Direction is the peer mirroring direction
+	// +optional
+	Direction string `json:"direction,omitempty"`
+	// SiteName is the current site name
+	// +optional
+	SiteName string `json:"site_name,omitempty"`
+	// MirrorUUID is the mirror UUID
+	// +optional
+	MirrorUUID string `json:"mirror_uuid,omitempty"`
+	// ClientName is the CephX user used to connect to the peer
+	// +optional
+	ClientName string `json:"client_name,omitempty"`
+}
+
 // SnapshotScheduleStatusSpec is the status of the snapshot schedule
 type SnapshotScheduleStatusSpec struct {
+	// SnapshotSchedules is the list of snapshots scheduled
 	// +optional
-	Summary json.RawMessage `json:"summary,omitempty"`
+	SnapshotSchedules *[]SnapshotSchedulesSpec `json:"snapshotSchedules,omitempty"`
+	// LastChecked is the last time time the status was checked
 	// +optional
 	LastChecked string `json:"lastChecked,omitempty"`
+	// LastChanged is the last time time the status last changed
 	// +optional
 	LastChanged string `json:"lastChanged,omitempty"`
+	// Details contains potential status errors
 	// +optional
 	Details string `json:"details,omitempty"`
+}
+
+// SnapshotSchedulesSpec is the list of snapshot scheduled for images in a pool
+type SnapshotSchedulesSpec struct {
+	// Pool is the pool name
+	// +optional
+	Pool string `json:"pool,omitempty"`
+	// Namespace is the RADOS namespace the image is part of
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// Image is the mirrored image
+	// +optional
+	Image string `json:"image,omitempty"`
+	// Items is the list schedules times for a given snapshot
+	// +optional
+	Items []SnapshotSchedule `json:"items,omitempty"`
+}
+
+// SnapshotSchedule is a schedule
+type SnapshotSchedule struct {
+	// Interval is the interval in which snapshots will be taken
+	// +optional
+	Interval string `json:"interval,omitempty"`
+	// StartTime is the snapshot starting time
+	// +optional
+	StartTime string `json:"start_time,omitempty"`
 }
 
 // Status represents the status of an object

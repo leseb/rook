@@ -31,10 +31,12 @@ HELM_CRDS_BEFORE_1_16_FILE_APTH=build/crds/helm-resources-before-1.16
 # MAIN #
 ########
 # ensures the vendor dir has the right deps, e,g. code-generator
-echo "vendoring project"
-go mod vendor
+if [ ! -d vendor/github.com/kube-object-storage/lib-bucket-provisioner/pkg/apis/objectbucket.io/v1alpha1/ ];then
+  echo "Vendoring project"
+  go mod vendor
+fi
 
-echo "generating crds.yaml"
+echo "Generating crds.yaml"
 "$CONTROLLER_GEN_BIN_PATH" "$CRD_OPTIONS" paths="./pkg/apis/ceph.rook.io/v1" output:crd:artifacts:config="$OLM_CATALOG_DIR"
 "$CONTROLLER_GEN_BIN_PATH" "$CRD_OPTIONS" paths="./pkg/apis/rook.io/v1alpha2" output:crd:artifacts:config="$OLM_CATALOG_DIR"
 "$CONTROLLER_GEN_BIN_PATH" "$CRD_OPTIONS" paths="./vendor/github.com/kube-object-storage/lib-bucket-provisioner/pkg/apis/objectbucket.io/v1alpha1" output:crd:artifacts:config="$OLM_CATALOG_DIR"
@@ -58,5 +60,5 @@ for crd in "$OLM_CATALOG_DIR/"*.yaml; do
   cat "$crd" >> "$HELM_CRDS_FILE_PATH"
 done
 
-echo "generating helm resources.yaml"
+echo "Generating helm resources.yaml"
 cat "$HELM_CRDS_BEFORE_1_16_FILE_APTH" >> "$HELM_CRDS_FILE_PATH"
